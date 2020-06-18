@@ -1,8 +1,9 @@
 import numpy as np
 from scipy import stats
 
+
 class PriorMean():
-    def __init__(self, m=0.0, lam=0.5, beta=1):
+    def __init__(self, m=0.0, lam=1, beta=1):
         self.m = m
         self.lam = lam
         self.beta = beta
@@ -34,8 +35,8 @@ class PosteriorMean():
         self.beta = beta
         
         self.N = len(data)
-        self.m_hat = (np.sum(data) + beta * m) / (beta + N)
-        self.beta_hat = beta + N
+        self.m_hat = (np.sum(data) + beta * m) / (beta + self.N)
+        self.beta_hat = beta + self.N
         
     def pdf(self, x):
         return stats.norm.pdf(x, loc=self.m_hat, scale=1/(self.beta_hat*self.lam))
@@ -45,24 +46,29 @@ class PosteriorMean():
 
 
 class PosteriorPrecision():
-    def __init__(self, data=None, a=None, b=None):
+    def __init__(self, data=None, a=None, b=None, beta=None, m=None):
         self.data = data
         self.a = a
         self.b = b
+        self.beta = beta
+        self.m = m
         
         self.N = len(data)
-        self.a_hat = a + N / 2
-        self.b_hat = b + 0.5 * (np.sum(data ** 2) + beta * (m ** 2) + (1/(beta + N)) * (np.sum(data ** 2) + beta * m) ** 2)
+        self.a_hat = a + self.N / 2
+        self.b_hat = b + 0.5 * (np.sum(data ** 2) + beta * (m ** 2) - (1/(beta + self.N)) * (np.sum(data ** 2) + beta * m) ** 2)
         
     def pdf(self, x):
         return stats.gamma.pdf(x, self.a_hat, loc=0, scale=self.b_hat)
+    
+    def mean(self):
+        return stats.gamma.mean(self.a_hat, loc=0, scale=self.b_hat)
     
     def rvs(self, size=100):
         return stats.gamma.rvs(self.a_hat, loc=0, scale=self.b_hat, size=size)
 
     
 class Likelihood():
-    def __init__(self, mu=0.0, lam=0.5):
+    def __init__(self, mu=0.0, lam=1.0):
         self.mu = mu
         self.lam = lam
         
@@ -86,18 +92,20 @@ class PredDist():
     def pdf(self, x):
         return stats.t.pdf(x, self.df, self.loc, self.scale)
     
-    def rvs(self, size=100):
-        return stats.t.rvs(self.df, self.loc, self.scale, size=size)
-
-
-class TrueDist():
-    def __init__(self, mean=1.2, precision=1.0):
-        self.mean = mean
-        self.precision = precision
-        
-    def pdf(self, x):
-        return stats.norm.pdf(x, loc=self.mean, scale=1/self.precision)
+    def sf(self, x):
+        """ survival function """
+        return stats.t.sf(x, self.df, self.loc, self.scale)
+    
+    def surprise(self, x):
+        mean = stats.t.mean(self.df, self.loc, self.scale)
+        sf_m = self.sf(mean)
+        sf_x = self.sf(x)
+        return abs(sf_x - sf_m)
+    
+    def error(self, x):
+        mean = stats.t.mean(self.df, self.loc, self.scale)
+        return abs(x - mean)
     
     def rvs(self, size=100):
-        return stats.norm.rvs(loc=self.mean, scale=1/self.precision, size=size)
+        return stats.t.rvs(self.df, self.loc, self.scale, size=size)
     
