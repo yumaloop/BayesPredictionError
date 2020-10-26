@@ -12,9 +12,11 @@ class PriorMean():
         self.var = stats.norm.var(loc=self.m, scale=1/(self.beta*self.lam))
         
     def pdf(self, x):
+        """ Probability Density Function """
         return stats.norm.pdf(x, loc=self.m, scale=1/(self.beta*self.lam))
     
     def rvs(self, size=100):
+        """ Random Variates """
         return stats.norm.rvs(loc=self.m, scale=1/(self.beta*self.lam), size=size)
         
 
@@ -27,9 +29,11 @@ class PriorPrecision():
         self.var = stats.gamma.var(self.a, loc=0, scale=1./self.b)
         
     def pdf(self, x):
+        """ Probability Density Function """
         return stats.gamma.pdf(x, self.a, loc=0, scale=1./self.b)
     
     def rvs(self, size=100):
+        """ Random Variates """
         return stats.gamma.rvs(self.a, loc=0, scale=1./self.b, size=size)
 
 
@@ -44,9 +48,11 @@ class PosteriorMean():
         self.var = stats.norm.var(loc=self.m_hat, scale=1/(self.beta_hat*self.lam))
         
     def pdf(self, x):
+        """ Probability Density Function """
         return stats.norm.pdf(x, loc=self.m_hat, scale=1/(self.beta_hat*self.lam))
     
     def rvs(self, size=100):
+        """ Random Variates """
         return stats.norm.rvs(loc=self.m_hat, scale=1/(self.beta_hat*self.lam), size=size)
 
 
@@ -60,12 +66,15 @@ class PosteriorPrecision():
         self.var = stats.gamma.var(self.a_hat, loc=0, scale=1./self.b_hat)
         
     def pdf(self, x):
+        """ Probability Density Function """
         return stats.gamma.pdf(x, self.a_hat, loc=0, scale=1./self.b_hat)
     
     def mean(self):
+        """ Mean """
         return stats.gamma.mean(self.a_hat, loc=0, scale=1./self.b_hat)
     
     def rvs(self, size=100):
+        """ Random Variates """
         return stats.gamma.rvs(self.a_hat, loc=0, scale=1./self.b_hat, size=size)
 
     
@@ -78,12 +87,15 @@ class Likelihood():
         self.var = stats.norm.var(loc=self.mu, scale=1/self.lam)
         
     def pdf(self, x):
+        """ Probability Density Function """
         return stats.norm.pdf(x, loc=self.mu, scale=1/self.lam)
     
     def logpdf(self, x):
+        """ Log Probability Density Function """
         return stats.norm.logpdf(x, loc=self.mu, scale=1/self.lam)
     
     def rvs(self, size=100):
+        """ Random Variates """
         return stats.norm.rvs(loc=self.mu, scale=1/self.lam, size=size)
 
 
@@ -97,21 +109,26 @@ class PredDist():
         self.var = stats.t.var(self.df, self.loc, self.scale)
         
     def pdf(self, x):
+        """ Probability Density Function """
         return stats.t.pdf(x, self.df, self.loc, self.scale)
     
     def cdf(self, x):
-        """ survival function """
+        """ Cumulative Distribution Function """
         return stats.t.cdf(x, self.df, self.loc, self.scale)
     
     def logpdf(self, x):
+        """ Log Probability Density Function """
         return stats.t.logpdf(x, self.df, self.loc, self.scale)
     
     def sf(self, x):
+        """ Survival Function (1-CDF) """
         return stats.t.sf(x, self.df, self.loc, self.scale)
     
     def error(self, x):
+        """ Predictive Error """
         return abs(x - self.mean)
     
     def rvs(self, size=100):
+        """ Random Variates """
         return stats.t.rvs(self.df, self.loc, self.scale, size=size)
 
