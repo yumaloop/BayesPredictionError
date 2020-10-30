@@ -2,110 +2,119 @@ import numpy as np
 from scipy import stats
 
 
-class PriorMean():
-    def __init__(self, m=0.0, lam=1, beta=1):
+class Prior():
+    """ N-dim Gaussian-Wishart distribution """
+    def __init__(self, m=0.0, beta=1, nu=None, W=None):
+        """
+        (x, A) ~ NW(m, beta, W, nu) = N(x | m, (beta A)^-1 ) W(A | W, nu)
+        """
         self.m = m
-        self.lam = lam
         self.beta = beta
-                
-        self.mean = stats.norm.mean(loc=self.m, scale=1/(self.beta*self.lam))
-        self.var = stats.norm.var(loc=self.m, scale=1/(self.beta*self.lam))
+        self.nu = nu # degree of freedom for Wishart dist.
+        self.W = W
         
-    def pdf(self, x):
+    def pdf(self, x, S):
         """ Probability Density Function """
-        return stats.norm.pdf(x, loc=self.m, scale=1/(self.beta*self.lam))
+        A = np.linalg.inv(S)
+        pdf = stats.multivariate_normal.pdf(x, mean=self.m, cov=np.linalg.inv(self.beta * A))
+        pdf = pdf * stats.wishart.pdf(A, df=self.nu, scale=self.W)
+        return pdf
     
     def rvs(self, size=100):
         """ Random Variates """
-        return stats.norm.rvs(loc=self.m, scale=1/(self.beta*self.lam), size=size)
+        A = stats.wishart.rvs(df=self.nu, scale=self.W, size=size)
+        x = stats.norm.rvs(mean=self.m, cov=np.linalg.inv(self.beta * A))
+        return x, A
         
-
-class PriorPrecision():
-    def __init__(self, a=2, b=2):
-        self.a = a
-        self.b = b
-        
-        self.mean = stats.gamma.mean(self.a, loc=0, scale=1./self.b)
-        self.var = stats.gamma.var(self.a, loc=0, scale=1./self.b)
-        
-    def pdf(self, x):
-        """ Probability Density Function """
-        return stats.gamma.pdf(x, self.a, loc=0, scale=1./self.b)
-    
-    def rvs(self, size=100):
-        """ Random Variates """
-        return stats.gamma.rvs(self.a, loc=0, scale=1./self.b, size=size)
-
 
 class PosteriorMean():
-    def __init__(self, data=None, m=None, lam=None, beta=None):
+    """ N-dim Gaussian distribution """
+    def __init__(self, data=None, m=None, beta=None, A=None):
         self.N = len(data)
-        self.lam = lam
-        self.m_hat = (np.sum(data) + beta * m) / (beta + self.N)
         self.beta_hat = beta + self.N
+        self.m_hat = (np.sum(data) + beta * m) / (self.beta_hat)
+        self.A = A
         
-        self.mean = stats.norm.mean(loc=self.m_hat, scale=1/(self.beta_hat*self.lam))
-        self.var = stats.norm.var(loc=self.m_hat, scale=1/(self.beta_hat*self.lam))
+        self.mean = self.m_hat
+        self.cov = np.linalg.inv(self.beta_hat * self.A)
         
     def pdf(self, x):
         """ Probability Density Function """
-        return stats.norm.pdf(x, loc=self.m_hat, scale=1/(self.beta_hat*self.lam))
+        return stats.multivariate_norm.pdf(x, mean=self.mean, cov=self.cov)
     
     def rvs(self, size=100):
         """ Random Variates """
-        return stats.norm.rvs(loc=self.m_hat, scale=1/(self.beta_hat*self.lam), size=size)
+        return stats.multivariate_norm.rvs(mean=self.mean, cov=self.cov, size=size)
 
 
 class PosteriorPrecision():
-    def __init__(self, data=None, a=None, b=None, beta=None, m=None):        
-        self.N = len(data)
-        self.a_hat = a + self.N / 2
-        self.b_hat = b + 0.5 * (np.sum(data ** 2) + beta * (m ** 2) - (1/(beta + self.N)) * (np.sum(data) + beta * m) ** 2)
-        
-        self.mean = stats.gamma.mean(self.a_hat, loc=0, scale=1./self.b_hat)
-        self.var = stats.gamma.var(self.a_hat, loc=0, scale=1./self.b_hat)
+    """ N-dim Wishart distribution """
+    def __init__(self, data=None, beta=None, beta_hat=None, nu=None, m=None, m_hat=None, W=None):
+        self.N = len(data) # num
+        self.dim = data.shape[1] # dim
+        self.beta = beta
+        self.beta_hat = beta_hat
+        self.nu = nu
+        self.m = m
+        self.m_hat = m
+        self.W = W
+
+        # W_hat
+        X = np.zeros((self.dim, self.dim))
+        for x in data:
+            X = X + np.outer(x, x)
+        W_hat_inv = X + beta * np.outer(m, m) - beta_hat * np.outer(m_hat, m_hat) + np.linalg.inv(W)
+        self.W_hat = np.linalg.inv(W_hat_inv)
+        # nu_hat
+        self.nu_hat = self.nu + self.N
         
     def pdf(self, x):
         """ Probability Density Function """
-        return stats.gamma.pdf(x, self.a_hat, loc=0, scale=1./self.b_hat)
+        return stats.wishart.pdf(x, df=self.nu_hat, scale=self.W_hat)
     
     def mean(self):
-        return stats.gamma.mean(self.a_hat, loc=0, scale=1./self.b_hat)
+        return self.nu_hat * self.W_hat
     
     def rvs(self, size=100):
         """ Random Variates """
-        return stats.gamma.rvs(self.a_hat, loc=0, scale=1./self.b_hat, size=size)
+        return stats.wishart.rvs(df=self.nu_hat, scale=self.W_hat, size=size)
 
     
 class Likelihood():
-    def __init__(self, mu=0.0, lam=1.0):
+    """ N-dim Gaussian distribution """
+    def __init__(self, mu=0.0, A=None):
         self.mu = mu
-        self.lam = lam
-        
-        self.mean = stats.norm.mean(loc=self.mu, scale=1/self.lam)
-        self.var = stats.norm.var(loc=self.mu, scale=1/self.lam)
+        self.A = A
+
+        self.mean = mu
+        self.cov = np.linalg.inv(A)
         
     def pdf(self, x):
         """ Probability Density Function """
-        return stats.norm.pdf(x, loc=self.mu, scale=1/self.lam)
+        return stats.multivariate_norm.pdf(x, mean=self.mean, cov=self.cov)
     
     def logpdf(self, x):
         """ Log Probability Density Function """
-        return stats.norm.logpdf(x, loc=self.mu, scale=1/self.lam)
+        return stats.multivariate_norm.logpdf(x, mean=self.mean, cov=self.cov)
     
     def rvs(self, size=100):
         """ Random Variates """
-        return stats.norm.rvs(loc=self.mu, scale=1/self.lam, size=size)
+        return stats.multivariate_norm.rvs(x, mean=self.mean, cov=self.cov, size=size)
 
 
 class PredDist():
-    def __init__(self, m=None, beta=None, a=None, b=None):
-        self.df = 2 * a # degree of freedom
+    """ N-dim Student's t-distribution """
+    def __init__(self, dim=None, m=None, beta=None, W=None, nu=None):
+        self.dim = dim
+        self.m = m
+        self.beta = beta
+        self.W = W
+        self.nu = nu
+
+        self.df = 1 - dim + nu # degree of freedom
         self.loc = m
-        self.scale = 1./np.sqrt(beta / (beta+1) * (a/b))
-        
-        self.mean = stats.t.mean(self.df, self.loc, self.scale)
-        self.var = stats.t.var(self.df, self.loc, self.scale)
+        self.scale = W * (self.df * beta) / (1 + beta)
+        self.mean = m
         
     def pdf(self, x):
         """ Probability Density Function """
